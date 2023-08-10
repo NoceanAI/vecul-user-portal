@@ -1,0 +1,7 @@
+early-access:
+  handler: functions/website/early-access.lambda_handler
+  events:
+    - http:
+        path: website/early-access
+        method: post
+        cors: true

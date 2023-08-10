@@ -1,0 +1,133 @@
+service: vecul-app
+frameworkVersion: "3"
+
+custom:
+  splitStacks:
+    nestedStackCount: 20
+    perFunction: false
+    perType: false
+    perGroupFunction: true
+  pythonRequirements:
+    # pipCmdExtraArgs:
+    #   - —-no-deps
+    dockerizePip: false
+    usePipenv: false
+    slim: true
+    layer: true
+  region:
+    staging: us-east-1
+    uat: us-west-1
+    prod: us-east-2
+
+plugins:
+  - serverless-plugin-split-stacks
+  - serverless-python-requirements
+provider:
+  name: aws
+  runtime: python3.8
+  memorySize: 1024
+  stage: ${opt:stage, 'staging'}
+  region: ${self:custom.region.${self:provider.stage}}
+  environment:
+    STAGE: ${sls:stage}
+    REGION: ${self:provider.region}
+  layers:
+    - { Ref: PythonRequirementsLambdaLayer }
+  iam:
+    role:
+      statements:
+        - Effect: "Allow"
+          Action:
+            - "dynamodb:DescribeTable"
+            - "dynamodb:Query"
+            - "dynamodb:Scan"
+            - "dynamodb:GetItem"
+            - "dynamodb:PutItem"
+            - "dynamodb:BatchGetItem"
+            - "dynamodb:UpdateItem"
+            - "dynamodb:DeleteItem"
+            - "dynamodb:DescribeStream"
+            - "dynamodb:GetRecords"
+            - "dynamodb:GetShardIterator"
+            - "dynamodb:ListStreams"
+          Resource:
+            [
+              !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/vecul",
+            ]
+        - Effect: "Allow"
+          Action:
+            - "dynamodb:DescribeTable"
+            - "dynamodb:Query"
+            - "dynamodb:Scan"
+            - "dynamodb:GetItem"
+          Resource:
+            [
+              !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/vecul"
+            ]
+        # - Effect: "Allow"
+        #   Action:
+        #     - "cognito-idp:ForgotPassword"
+        #     - "cognito-idp:ConfirmSignUp"
+        #     - "cognito-idp:GetUserAttributeVerificationCode"
+        #     - "cognito-idp:InitiateAuth"
+        #     - "cognito-idp:ConfirmForgotPassword"
+        #     - "cognito-idp:SignUp"
+        #     - "cognito-idp:VerifyUserAttribute"
+        #     - "cognito-idp:AssociateSoftwareToken"
+        #     - "cognito-idp:VerifySoftwareToken"
+        #     - "cognito-idp:RespondToAuthChallenge"
+        #     - "cognito-idp:ChangePassword"
+        #     - "cognito-idp:ResendConfirmationCode"
+        #     - "cognito-idp:AdminGetUser"
+        #     - "cognito-idp:DescribeUserPoolClient"
+        #     - "cognito-idp:AdminUpdateUserAttributes"
+        #     - "cognito-idp:AdminUserGlobalSignOut"
+        #     - "cognito-idp:AdminCreateUser"
+        #     - "cognito-idp:AdminDisableUser"
+        #     - "cognito-idp:AdminEnableUser"
+        #     - "cognito-idp:ListUsers"
+        #   Resource: [!Sub "${ssm:/AUTHORIZATION_ARN}"]
+        - Effect: "Allow"
+          Action:
+            - "logs:PutLogEvents"
+          Resource:
+            [
+              !Sub "arn:aws:logs:*:*:log-group:/aws/lambda/vecul-app-${self:provider.stage}-*",
+            ]
+        - Effect: "Allow"
+          Action:
+            - "apigateway:GET"
+          Resource: [!Sub "arn:aws:apigateway:*::/*"]
+        
+package:
+  patterns:
+    - "!node_modules/**"
+    - "!node_modules/node-fetch/**"
+    - "!venv/**"
+    - "!package-lock.json"
+    - "!tests"
+    - "!dev-requirements.txt"
+    - "!add-prod-req.sh"
+    - "!tests"
+    - "!.github"
+    - "!.serverless"
+    - "!bti_diagram"
+    - "!docs"
+    - "!.env"
+    - "!.gitignore"
+    - "!README.md"
+
+functions:
+  - ${file(functions/website/index.yml)}
+
+resources:
+  Resources:
+    GatewayResponseDefault4XX:
+      Type: "AWS::ApiGateway::GatewayResponse"
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+        ResponseType: DEFAULT_4XX
+        RestApiId:
+          Ref: "ApiGatewayRestApi"
